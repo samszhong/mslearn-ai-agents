@@ -5,6 +5,10 @@ from pathlib import Path
 
 
 # Add references
+from azure.identity import DefaultAzureCredential
+from azure.ai.agents import AgentsClient
+from azure.ai.agents.models import FunctionTool, ToolSet, ListSortOrder, MessageRole
+from user_functions import user_functions
 
 def main(): 
 
@@ -13,15 +17,37 @@ def main():
 
     # Load environment variables from .env file
     load_dotenv()
-    PROJECT_CONNECTION_STRING= os.getenv("AZURE_AI_AGENT_PROJECT_CONNECTION_STRING")
-    MODEL_DEPLOYMENT = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME")
+    project_endpoint= os.getenv("AZURE_AI_AGENT_PROJECT_CONNECTION_STRING")
+    model_deployment = os.getenv("AZURE_AI_AGENT_MODEL_DEPLOYMENT_NAME")
 
 
-    # Connect to the Azure AI Foundry project
+    # Connect to the Agent client
+    agent_client = AgentsClient(
+        endpoint=project_endpoint,
+        credential=DefaultAzureCredential
+            (exclude_environment_credential=True,
+            exclude_managed_identity_credential=True)
+    )
     
 
 
     # Define an agent that can use the custom functions
+    with agent_client:
+
+        functions = FunctionTool(user_functions)
+        toolset = ToolSet()
+        toolset.add(functions)
+        agent_client.enable_auto_function_calls(toolset)
+                
+        agent = agent_client.create_agent(
+            model=model_deployment,
+            name="weather_agent",
+            instructions="""You are an AI agent that retrieves current weather or a 5-day weather forecast for a given location using a function call. If the user asks for a forecast, use the forecast function. If the user asks for current weather, use the current weather function.""",
+            toolset=toolset
+        )
+
+        thread = agent_client.threads.create()
+        print(f"You're chatting with: {agent.name} ({agent.id})")
 
 
     
@@ -36,22 +62,41 @@ def main():
                 continue
 
             # Send a prompt to the agent
+            message = agent_client.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=user_prompt
+            )
+            run = agent_client.runs.create_and_process(thread_id=thread.id, agent_id=agent.id)
 
 
             # Check the run status for failures
+            if run.status == "failed":
+                print(f"Run failed: {run.last_error}")
 
                 
             # Show the latest response from the agent
+            last_msg = agent_client.messages.get_last_message_text_by_role(
+                thread_id=thread.id,
+                role=MessageRole.AGENT,
+            )
+            if last_msg:
+                print(f"Last Message: {last_msg.text.value}")
 
 
         # Get the conversation history
+        print("\nConversation Log:\n")
+        messages = agent_client.messages.list(thread_id=thread.id, order=ListSortOrder.ASCENDING)
+        for message in messages:
+            if message.text_messages:
+                last_msg = message.text_messages[-1]
+                print(f"{message.role}: {last_msg.text.value}\n")
 
 
         # Clean up
-
+        #agent_client.delete_agent(agent.id)
+        print("Deleted agent")
     
-
-
 
 if __name__ == '__main__': 
     main()
