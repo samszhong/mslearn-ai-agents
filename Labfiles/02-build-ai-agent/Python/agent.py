@@ -118,7 +118,7 @@ def main():
 
 
         # Clean up
-        agent_client.delete_agent(agent.id)
+        # agent_client.delete_agent(agent.id)
         
    
 
