@@ -58,7 +58,7 @@ async def main():
             instructions=WEATHER_MANAGER_INSTRUCTIONS
         )
 
-        # Create a Semantic Kernel agent for the INCIDENT_MANAGER
+        # Create a Semantic Kernel agent for the WEATHER_MANAGER
         agent_weather = AzureAIAgent(
             client=client,
             definition=weather_agent_definition,
@@ -72,7 +72,7 @@ async def main():
             instructions=CAMPING_ASSISTANT_INSTRUCTIONS,
         )
 
-        # Create a Semantic Kernel agent for the DEVOPS_ASSISTANT
+        # Create a Semantic Kernel agent for the CAMPING_ASSISTANT
         agent_camping = AzureAIAgent(
             client=client,
             definition=camping_agent_definition

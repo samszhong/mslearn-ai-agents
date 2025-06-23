@@ -1,3 +1,4 @@
+
 # Load environment variables from .env file
 from dotenv import load_dotenv
 import asyncio
@@ -6,7 +7,6 @@ import os
 # Azure and Semantic Kernel imports
 from azure.identity.aio import DefaultAzureCredential
 from semantic_kernel.agents import SequentialOrchestration
-from semantic_kernel.agents.runtime import InProcessRuntime
 from semantic_kernel.agents import AzureAIAgent, AzureAIAgentSettings
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
 
@@ -51,43 +51,48 @@ async def main():
             exclude_managed_identity_credential=True) as creds,
         AzureAIAgent.create_client(endpoint=azure_ai_endpoint, credential=creds) as client,
     ):
-        # Create the weather agent definition on the Azure AI agent service
+        # Create the INCIDENT_MANAGER agent definition on the Azure AI agent service
         weather_agent_definition = await client.agents.create_agent(
             model=ai_agent_settings.model_deployment_name,
             name=WEATHER_MANAGER,
             instructions=WEATHER_MANAGER_INSTRUCTIONS
         )
 
-        # Create a Semantic Kernel agent for the INCIDENT_MANAGER
+        # Create a Semantic Kernel agent for the WEATHER_MANAGER
         agent_weather = AzureAIAgent(
             client=client,
             definition=weather_agent_definition,
             plugins=[WeatherForecastPlugin()]  # Pass an instance, not the class
         )
 
-        # Create the camping assistant agent definition on the Azure AI agent service
+        # Create the DEVOPS_ASSISTANT agent definition on the Azure AI agent service
         camping_agent_definition = await client.agents.create_agent(
             model=ai_agent_settings.model_deployment_name,
             name=CAMPING_ASSISTANT,
             instructions=CAMPING_ASSISTANT_INSTRUCTIONS,
         )
 
-        # Create a Semantic Kernel agent for the DEVOPS_ASSISTANT
+        # Create a Semantic Kernel agent for the CAMPING_ASSISTANT
         agent_camping = AzureAIAgent(
             client=client,
             definition=camping_agent_definition
         )
 
-        # Prompt user for location
-        user_location = input("Enter a location (city or city,country) for your upcoming camping trip: ")
 
-        # Use SequentialOrchestration to run both agents in sequence
-        sequential_orchestration = SequentialOrchestration(members=[agent_weather, agent_camping])
-        runtime = InProcessRuntime()
-        runtime.start()
-        orchestration_result = await sequential_orchestration.invoke(task=user_location, runtime=runtime)
-        value = await orchestration_result.get(timeout=20)
-        print(f"***** Final Result *****\n{value}")
+
+        # Prompt user for location
+        user_location = input("Enter a location (city or city,country) for your camping trip: ")
+        USER_INPUTS = [user_location]
+
+        # Step 1: Get weather forecast from agent_weather
+        weather_result = await agent_weather.get_response(messages=USER_INPUTS)
+        print(f"Weather forecast for camping: {weather_result}")
+
+        # Step 2: Pass weather forecast to agent_camping for recommendations
+        camping_prompt = f"Based on this weather forecast, what items should I bring for a camping trip?\n\n{weather_result}"
+        camping_result = await agent_camping.get_response(messages=[camping_prompt])
+        print(f"***** Camping Recommendations *****\n{camping_result}")
+
      
 
 
